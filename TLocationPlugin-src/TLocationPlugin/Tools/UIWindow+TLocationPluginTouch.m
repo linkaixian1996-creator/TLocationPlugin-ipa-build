@@ -16,28 +16,8 @@
 
 static NSInteger _t_windowTouchedTimes = 0;
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    if (TLocationNavigationController.isShowing) {
-        return;
-    }
-    if (_t_windowTouchedTimes == 0) {
-        // 开始触摸, 5秒后清零
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            _t_windowTouchedTimes = 0;
-        });
-    }
-    ++_t_windowTouchedTimes;
-    if (_t_windowTouchedTimes < 5) {
-        return;
-    }
-    // 5秒内触摸5次
-    TLocationNavigationController.isShowing = YES;
-    _t_windowTouchedTimes = 0;
-    AudioServicesPlaySystemSound(kSystemSoundID_Vibrate);
-    UIViewController *rootVC = [UIApplication sharedApplication].t_topViewController;
-    TSelectLocationDataViewController *vc = [[TSelectLocationDataViewController alloc] init];
-    TLocationNavigationController *nav = [[TLocationNavigationController alloc] initWithRootViewController:vc];
-    [rootVC presentViewController:nav animated:YES completion:^{
-        [UIApplication.sharedApplication performSelector:@selector(setStatusBarStyle:animated:) withObject:@(UIStatusBarStyleDefault) withObject:@(YES)];
-    }];
+    // 功能入口已改为悬浮窗（TLocationFloatBall），不再使用 5 连击打开界面；
+    // 保留事件转发，避免影响宿主 App 的触摸行为。
+    [super touchesBegan:touches withEvent:event];
 }
 @end

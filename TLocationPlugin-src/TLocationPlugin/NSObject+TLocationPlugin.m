@@ -12,15 +12,16 @@
 #import "TLocationManager.h"
 #import "UIWindow+TLocationPluginToast.h"
 #import "LicenseManager.h"
+#import "TLocationFloatBall.h"
 #import <objc/runtime.h>
 #import <dlfcn.h>
 
 @implementation NSObject (TLocationPlugin)
 
 + (void)load {
-    // 启动后检查授权：未激活则弹卡密输入框（与原版激活体验一致）
+    // 启动后强制校验：每次冷启动都向服务器校验卡密，通过才显示悬浮窗
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [NSObject promptLicenseIfNeededWithRetry:3];
+        [NSObject checkLicenseAtLaunchWithRetry:5];
     });
 
     // Selector Name
@@ -55,19 +56,39 @@
 
 #pragma mark - 启动激活（强制验证，与原版一致）
 
-+ (void)promptLicenseIfNeededWithRetry:(NSInteger)retry {
-    if ([LicenseManager isActivated]) {
-        return; // 已激活，正常进入
-    }
++ (void)checkLicenseAtLaunchWithRetry:(NSInteger)retry {
     UIViewController *top = [NSObject topViewController];
     if (!top) {
         if (retry > 0) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                [NSObject promptLicenseIfNeededWithRetry:retry - 1];
+                [NSObject checkLicenseAtLaunchWithRetry:retry - 1];
             });
         }
         return;
     }
+    // 本地没有 token -> 未激活，弹卡密输入框
+    if (![LicenseManager token].length) {
+        [NSObject promptActivateOn:top];
+        return;
+    }
+    // 本地有 token -> 每次冷启动联网校验（服务器禁用/过期/换设备会清除本地状态）
+    [LicenseManager heartbeatWithCompletion:^(BOOL valid, NSString *message) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (valid) {
+                // 服务器认可（或网络失败离线容错）-> 显示悬浮窗
+                [TLocationFloatBall show];
+            } else {
+                // 服务器明确拒绝 -> 已清除激活 -> 弹卡密输入框
+                UIViewController *top2 = [NSObject topViewController];
+                if (top2) {
+                    [NSObject promptActivateOn:top2];
+                }
+            }
+        });
+    }];
+}
+
++ (void)promptActivateOn:(UIViewController *)top {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"某手控制台 · 激活"
                                                                   message:@"请输入卡密激活后使用虚拟定位"
                                                            preferredStyle:UIAlertControllerStyleAlert];
@@ -86,7 +107,10 @@
                 // 激活成功：强制退出，重启后生效（与原版一致）
                 exit(0);
             } else {
-                [NSObject promptLicenseIfNeededWithRetry:2];
+                UIViewController *top2 = [NSObject topViewController];
+                if (top2) {
+                    [NSObject promptActivateOn:top2];
+                }
             }
         }];
     }]];
