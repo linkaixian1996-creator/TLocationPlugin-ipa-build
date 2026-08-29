@@ -7,6 +7,7 @@
 #import "TSelectLocationDataViewController.h"
 #import "TLocationNavigationController.h"
 #import "UIApplication+TLocationPlugin.h"
+#import "UIImage+TLocationPlugin.h"
 
 static UIWindow *_floatWindow;
 
@@ -41,8 +42,16 @@ static UIWindow *_floatWindow;
     ball.layer.cornerRadius = size / 2.0;
     ball.clipsToBounds = YES;
     ball.titleLabel.font = [UIFont boldSystemFontOfSize:15];
-    [ball setTitle:@"定位" forState:UIControlStateNormal];
-    [ball setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    UIImage *icon = [UIImage t_imageNamed:@"位置"];
+    if (icon) {
+        [ball setImage:icon forState:UIControlStateNormal];
+        [ball setTitle:@"" forState:UIControlStateNormal];
+        ball.imageView.contentMode = UIViewContentModeScaleAspectFit;
+        ball.imageEdgeInsets = UIEdgeInsetsMake(14, 14, 14, 14);
+    } else {
+        [ball setTitle:@"定位" forState:UIControlStateNormal];
+        [ball setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    }
     [window.rootViewController.view addSubview:ball];
 
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self
