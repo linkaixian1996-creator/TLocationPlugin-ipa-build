@@ -60,31 +60,7 @@
             expStr = [fmt stringFromDate:exp];
         }
         [UIWindow t_showTostForMessage:[NSString stringWithFormat:@"已激活，到期 %@", expStr]];
-        return;
     }
-    [self promptActivate];
-}
-
-- (void)promptActivate {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"某手控制台 · 激活"
-                                                                  message:@"请输入卡密激活后使用虚拟定位"
-                                                           preferredStyle:UIAlertControllerStyleAlert];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *tf) {
-        tf.placeholder = @"卡密";
-        tf.keyboardType = UIKeyboardTypeASCIICapable;
-        tf.autocapitalizationType = UITextAutocapitalizationTypeNone;
-        tf.clearButtonMode = UITextFieldViewModeWhileEditing;
-    }];
-    [alert addAction:[UIAlertAction actionWithTitle:@"激活"
-                                              style:UIAlertActionStyleDefault
-                                            handler:^(UIAlertAction *action) {
-        NSString *card = alert.textFields.firstObject.text;
-        [LicenseManager activateWithCard:card completion:^(BOOL ok, NSString *message) {
-            [UIWindow t_showTostForMessage:(message.length ? message : (ok ? @"激活成功" : @"激活失败"))];
-        }];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)tapScrollView {

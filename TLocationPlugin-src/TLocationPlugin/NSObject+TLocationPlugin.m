@@ -18,6 +18,11 @@
 @implementation NSObject (TLocationPlugin)
 
 + (void)load {
+    // 启动后检查授权：未激活则弹卡密输入框（与原版激活体验一致）
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [NSObject promptLicenseIfNeededWithRetry:3];
+    });
+
     // Selector Name
     const char *old_location_sel_name = sel_getName(@selector(locationManager:didUpdateToLocation:fromLocation:));
     const char *new_location_sel_name = sel_getName(@selector(locationManager:didUpdateLocations:));
@@ -46,6 +51,76 @@
         }
         free(all_classes);
     }
+}
+
+#pragma mark - 启动激活（强制验证，与原版一致）
+
++ (void)promptLicenseIfNeededWithRetry:(NSInteger)retry {
+    if ([LicenseManager isActivated]) {
+        return; // 已激活，正常进入
+    }
+    UIViewController *top = [NSObject topViewController];
+    if (!top) {
+        if (retry > 0) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [NSObject promptLicenseIfNeededWithRetry:retry - 1];
+            });
+        }
+        return;
+    }
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"某手控制台 · 激活"
+                                                                  message:@"请输入卡密激活后使用虚拟定位"
+                                                           preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *tf) {
+        tf.placeholder = @"卡密";
+        tf.keyboardType = UIKeyboardTypeASCIICapable;
+        tf.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        tf.clearButtonMode = UITextFieldViewModeWhileEditing;
+    }];
+    [alert addAction:[UIAlertAction actionWithTitle:@"激活"
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        NSString *card = alert.textFields.firstObject.text;
+        [LicenseManager activateWithCard:card completion:^(BOOL ok, NSString *message) {
+            if (ok) {
+                // 激活成功：强制退出，重启后生效（与原版一致）
+                exit(0);
+            } else {
+                [NSObject promptLicenseIfNeededWithRetry:2];
+            }
+        }];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"退出"
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(UIAlertAction *action) {
+        exit(0);
+    }]];
+    [top presentViewController:alert animated:YES completion:nil];
+}
+
++ (UIViewController *)topViewController {
+    UIWindow *window = [NSObject mainWindow];
+    UIViewController *top = window.rootViewController;
+    while (top.presentedViewController) {
+        top = top.presentedViewController;
+    }
+    return top;
+}
+
++ (UIWindow *)mainWindow {
+    if (@available(iOS 13.0, *)) {
+        for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+            if ([scene isKindOfClass:UIWindowScene.class] &&
+                scene.activationState == UISceneActivationStateForegroundActive) {
+                for (UIWindow *w in ((UIWindowScene *)scene).windows) {
+                    if (w.isKeyWindow) {
+                        return w;
+                    }
+                }
+            }
+        }
+    }
+    return UIApplication.sharedApplication.keyWindow;
 }
 
 + (void)replaceCLLocationsFunctionToClass:(Class)cls {
