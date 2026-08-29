@@ -35,7 +35,7 @@ jobs:
             ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET=12.0 \
             -derivedDataPath ../dd build
 
-      - name: Inject framework into Kwai binary
+      - name: Replace plugin framework (old verify removed) and inject if needed
         run: |
           set -e
           IPA=$(ls *.ipa | head -1)
@@ -44,13 +44,21 @@ jobs:
           unzip -q "$IPA"
           APP=$(ls Payload | head -1)
           echo "app dir: $APP"
+          # 1) 用新编译的 framework 替换旧插件（旧 3DES 验证随之移除，虚拟定位功能保留）
+          rm -rf "Payload/$APP/Frameworks/TLocationPlugin.framework"
           mkdir -p "Payload/$APP/Frameworks"
           cp -R dd/Build/Products/Release-iphoneos/TLocationPlugin.framework "Payload/$APP/Frameworks/"
+          # 2) 若主二进制尚未加载 TLocationPlugin（原包理论上已加载），用 yololib 补注入
           cd "Payload/$APP"
           plutil -remove UISupportedDevices Info.plist || true
-          ../../TLocationPlugin-src/yololib/yololib "$APP" "Frameworks/TLocationPlugin.framework/TLocationPlugin"
+          if ! otool -L "$APP" | grep -q TLocationPlugin; then
+            echo "main binary missing TLocationPlugin load command -> yololib inject"
+            ../../TLocationPlugin-src/yololib/yololib "$APP" "Frameworks/TLocationPlugin.framework/TLocationPlugin"
+          else
+            echo "main binary already loads TLocationPlugin -> replacement only"
+          fi
           cd ../..
-          echo "inject done"
+          echo "replace/inject done"
 
       - name: Package IPA
         run: |

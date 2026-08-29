@@ -1,11 +1,18 @@
 # TLocationPlugin IPA 云打包（GitHub Actions）
 
-把注入新验证逻辑的 TLocationPlugin 打进快手 IPA，全程在 GitHub 免费 macOS 云主机完成，不需要本机 Mac、不需要证书。
+把注入新验证逻辑的 TLocationPlugin 打进快手 IPA：**移除旧 3DES 卡密验证 → 保留虚拟定位功能 → 装入新 LicenseManager 验证**。全程在 GitHub 免费 macOS 云主机完成，不需要本机 Mac、不需要证书。
 
 ## 仓库内容
 
 - `TLocationPlugin-src/`：插件源码（LicenseManager 已填好服务器地址 + VCA_KEY）+ yololib
 - `.github/workflows/build-ipa.yml`：云打包流水线
+
+## 打包逻辑说明
+
+- 原始 IPA 里插件是 `Frameworks/TLocationPlugin.framework`（旧版，含旧 3DES 验证）。
+- 流水线用**干净开源源码 + 新 LicenseManager** 重新编译 framework，**整包替换**旧的 → 旧验证代码彻底移除，虚拟定位功能保留，新验证装入。
+- 主二进制原本已加载该 framework，无需重复注入；若检测到未加载则用 yololib 补注入。
+- 激活入口：连点 5 次快手窗口打开设置界面后，未激活会自动弹出卡密输入框。
 
 ## 使用方法
 
