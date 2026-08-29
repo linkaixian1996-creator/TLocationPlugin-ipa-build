@@ -12,12 +12,13 @@
 
 static UIButton *_ballButton;
 static NSTimeInterval _lastShakeTime;
+static NSTimeInterval _userHiddenAt;
 
 static IMP __originalSendEvent;
 static void __tlSendEvent(id self, SEL _cmd, UIEvent *event) {
-    ((void (*)(id, SEL, UIEvent *))__originalSendEvent)(self, _cmd, event);
     if (event.type == UIEventTypeMotion && event.subtype == UIEventSubtypeMotionShake) {
-        // 去抖：1 秒内只响应一次摇一摇，避免一次摇动触发多次 toggle
+        // 吞掉摇一摇事件：阻止系统 shake-to-undo 弹窗（否则会切 key window 把悬浮球叫回来）
+        // 去抖：1 秒内只响应一次
         NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
         if (now - _lastShakeTime < 1.0) {
             return;
@@ -26,7 +27,9 @@ static void __tlSendEvent(id self, SEL _cmd, UIEvent *event) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [TLocationFloatBall toggle];
         });
+        return;
     }
+    ((void (*)(id, SEL, UIEvent *))__originalSendEvent)(self, _cmd, event);
 }
 
 @implementation TLocationFloatBall
@@ -62,6 +65,15 @@ static void __tlSendEvent(id self, SEL _cmd, UIEvent *event) {
 }
 
 + (void)show {
+    // 用户刚主动隐藏（摇一摇隐藏）后 2 秒内，系统通知不再自动唤出
+    NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
+    if (now - _userHiddenAt < 2.0) {
+        return;
+    }
+    [TLocationFloatBall showNow];
+}
+
++ (void)showNow {
     UIWindow *host = [TLocationFloatBall hostWindow];
     if (!host) {
         return;
@@ -117,9 +129,11 @@ static void __tlSendEvent(id self, SEL _cmd, UIEvent *event) {
 
 + (void)toggle {
     if (_ballButton && _ballButton.superview) {
+        _userHiddenAt = [[NSDate date] timeIntervalSince1970];
         [TLocationFloatBall hide];
     } else {
-        [TLocationFloatBall show];
+        _userHiddenAt = 0;
+        [TLocationFloatBall showNow];
     }
 }
 
