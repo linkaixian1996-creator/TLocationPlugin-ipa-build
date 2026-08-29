@@ -1,0 +1,65 @@
+name: Build Kwai IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub Release 的 tag（里面放了原始 Kwai_14.7.20.ipa）"
+        required: true
+        default: "kwai-14.7.20"
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download original IPA from Release
+        run: |
+          gh release download "${{ github.event.inputs.release_tag }}" --pattern '*.ipa' --dir .
+          ls -la *.ipa
+
+      - name: Build yololib (Mach-O injector)
+        run: |
+          cd TLocationPlugin-src/yololib
+          clang -fobjc-arc -framework Foundation -o yololib main.m
+          file yololib
+
+      - name: Build TLocationPlugin framework
+        run: |
+          cd TLocationPlugin-src
+          xcodebuild -project TLocationPlugin.xcodeproj -scheme TLocationPlugin \
+            -configuration Release -sdk iphoneos \
+            ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET=12.0 \
+            -derivedDataPath ../dd build
+
+      - name: Inject framework into Kwai binary
+        run: |
+          set -e
+          IPA=$(ls *.ipa | head -1)
+          echo "using $IPA"
+          rm -rf Payload
+          unzip -q "$IPA"
+          APP=$(ls Payload | head -1)
+          echo "app dir: $APP"
+          mkdir -p "Payload/$APP/Frameworks"
+          cp -R dd/Build/Products/Release-iphoneos/TLocationPlugin.framework "Payload/$APP/Frameworks/"
+          cd "Payload/$APP"
+          plutil -remove UISupportedDevices Info.plist || true
+          ../../TLocationPlugin-src/yololib/yololib "$APP" "Frameworks/TLocationPlugin.framework/TLocationPlugin"
+          cd ../..
+          echo "inject done"
+
+      - name: Package IPA
+        run: |
+          rm -f Kwai_new.ipa
+          zip -qr Kwai_new.ipa Payload
+          ls -la Kwai_new.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kwai_new_ipa
+          path: Kwai_new.ipa
