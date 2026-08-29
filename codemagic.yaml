@@ -4,8 +4,8 @@ workflows:
     max_build_duration: 30
     instance_type: mac_mini_m2
     environment:
-      # mac_mini_m2 最低支持 15.x；15.4 对 2019 年老工程足够稳
-      xcode: 15.4
+      # Codemagic 当前支持 16.x~26.x；16.4 比默认 26 老，兼容 2019 年老工程
+      xcode: 16.4
       vars:
         GH_REPO: linkaixian1996-creator/TLocationPlugin-ipa-build
         RELEASE_TAG: kwai-14.7.20
