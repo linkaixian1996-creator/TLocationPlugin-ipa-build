@@ -30,7 +30,8 @@ static UIButton *_ballButton;
 
     UIButton *ball = [UIButton buttonWithType:UIButtonTypeCustom];
     ball.frame = frame;
-    ball.backgroundColor = [UIColor colorWithRed:0.13 green:0.44 blue:0.95 alpha:0.95];
+    // 高透明度：几乎不挡视野但能看到
+    ball.backgroundColor = [UIColor colorWithRed:0.13 green:0.44 blue:0.95 alpha:0.35];
     ball.layer.cornerRadius = size / 2.0;
     ball.clipsToBounds = YES;
     ball.titleLabel.font = [UIFont boldSystemFontOfSize:15];
