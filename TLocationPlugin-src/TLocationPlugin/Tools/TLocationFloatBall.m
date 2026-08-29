@@ -8,6 +8,7 @@
 #import "TLocationNavigationController.h"
 #import "UIApplication+TLocationPlugin.h"
 #import "UIImage+TLocationPlugin.h"
+#import "LicenseManager.h"
 #import <objc/runtime.h>
 
 static UIButton *_ballButton;
@@ -74,6 +75,11 @@ static void __tlSendEvent(id self, SEL _cmd, UIEvent *event) {
 }
 
 + (void)showNow {
+    // 激活门槛：只有已激活（且启动校验通过）才允许显示悬浮窗。
+    // 首次安装未激活时，这里直接返回，摇一摇也唤不出来。
+    if (![LicenseManager isActivated]) {
+        return;
+    }
     UIWindow *host = [TLocationFloatBall hostWindow];
     if (!host) {
         return;
@@ -128,6 +134,9 @@ static void __tlSendEvent(id self, SEL _cmd, UIEvent *event) {
 }
 
 + (void)toggle {
+    if (![LicenseManager isActivated]) {
+        return; // 未激活不允许唤出/操作悬浮窗
+    }
     if (_ballButton && _ballButton.superview) {
         _userHiddenAt = [[NSDate date] timeIntervalSince1970];
         [TLocationFloatBall hide];
