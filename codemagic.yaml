@@ -27,11 +27,8 @@ workflows:
 
       - name: Build TLocationPlugin framework
         script: |
-          cd TLocationPlugin-src
-          xcodebuild -project TLocationPlugin.xcodeproj -scheme TLocationPlugin \
-            -configuration Release -sdk iphoneos \
-            ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET=12.0 \
-            -derivedDataPath ../dd build
+          # 绕开 xcodebuild ScanDependencies bug，用 clang 手工编译
+          bash build_framework.sh
 
       - name: Replace plugin framework and inject if needed
         script: |
@@ -41,9 +38,16 @@ workflows:
           APP=$(ls Payload | head -1)
           BIN=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "Payload/$APP/Info.plist")
           echo "app: $APP binary: $BIN"
+          # 1) 备份原版 framework（保留 nib/bundle/Info.plist/Modules 资源）
+          cp -R "Payload/$APP/Frameworks/TLocationPlugin.framework" /tmp/oldfw_backup
+          # 2) 重建 framework 目录，从备份恢复资源
           rm -rf "Payload/$APP/Frameworks/TLocationPlugin.framework"
-          mkdir -p "Payload/$APP/Frameworks"
-          cp -R dd/Build/Products/Release-iphoneos/TLocationPlugin.framework "Payload/$APP/Frameworks/"
+          mkdir -p "Payload/$APP/Frameworks/TLocationPlugin.framework"
+          cp -R /tmp/oldfw_backup/. "Payload/$APP/Frameworks/TLocationPlugin.framework/"
+          rm -rf "Payload/$APP/Frameworks/TLocationPlugin.framework/_CodeSignature"
+          # 3) 用新编译的二进制覆盖
+          cp /tmp/newfw/TLocationPlugin.framework/TLocationPlugin "Payload/$APP/Frameworks/TLocationPlugin.framework/TLocationPlugin"
+          echo "framework binary replaced"
           cd "Payload/$APP"
           plutil -remove UISupportedDevices Info.plist || true
           if ! otool -L "$BIN" | grep -q TLocationPlugin; then
