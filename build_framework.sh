@@ -25,7 +25,7 @@ done < <(find "$SRC" -name '*.m' | sort)
 echo "== link =="
 clang -arch arm64 -isysroot "$SDK" -dynamiclib -fobjc-arc -miphoneos-version-min=12.0 -w \
   -framework UIKit -framework Foundation -framework CoreLocation -framework CoreGraphics \
-  -framework AudioToolbox -framework Security -framework QuartzCore \
+  -framework AudioToolbox -framework Security -framework QuartzCore -framework MapKit \
   -Xlinker -install_name -Xlinker @rpath/TLocationPlugin.framework/TLocationPlugin \
   -Xlinker -rpath -Xlinker @loader_path/Frameworks \
   -o "$OUT/TLocationPlugin" "$OBJ"/*.o
