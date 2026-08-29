@@ -13,6 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (void)show;
 + (void)hide;
++ (void)toggle;
 
 @end
 
