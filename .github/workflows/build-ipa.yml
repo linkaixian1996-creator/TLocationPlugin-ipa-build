@@ -12,11 +12,15 @@ jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Download original IPA from Release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh release download "${{ github.event.inputs.release_tag }}" --pattern '*.ipa' --dir .
           ls -la *.ipa
