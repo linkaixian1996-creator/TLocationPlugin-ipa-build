@@ -19,6 +19,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Inject VCA_KEY from secrets
+        env:
+          VCA_KEY: ${{ secrets.VCA_KEY }}
+        run: |
+          test -n "$VCA_KEY" || { echo "::error::VCA_KEY secret missing"; exit 1; }
+          sed -i "s/\"CHANGE_ME\"/\"$VCA_KEY\"/" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m
+          grep -q "$VCA_KEY" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m && echo "VCA_KEY injected"
+
       - name: Download original IPA from Release
         env:
           GH_TOKEN: ${{ github.token }}

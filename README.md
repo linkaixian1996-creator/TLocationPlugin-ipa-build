@@ -30,4 +30,10 @@
 ## 客户端配置（已填好）
 
 - 服务器：`https://ks.etgstudio.live`
-- VCA_KEY：`cabee0556a79e94b01c3fba1e37f63056d0b6f668e336f6e402e07f4adab82bc`（必须与 VPS 上 `/opt/tlocation-vca/.env` 一致）
+- VCA_KEY：**不放仓库**。构建时从 GitHub **Secrets** 读取（见第 2 步）；必须与 VPS 上 `/opt/tlocation-vca/.env` 的 `VCA_KEY` 完全一致（`sudo cat /opt/tlocation-vca/.env | grep VCA_KEY` 查看）。
+
+## 为什么仓库必须是 Public
+
+- GitHub 免费版对**私有仓库**不提供 macOS 云主机，任务会一直排队；
+- 改为 **Public** 后免费额度即可用；
+- 真实密钥已从源码移除，通过 **Settings → Secrets and variables → Actions → New repository secret** 配置 `VCA_KEY`，构建时自动注入，仓库公开也不会泄露。

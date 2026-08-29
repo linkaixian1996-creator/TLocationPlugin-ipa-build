@@ -8,8 +8,8 @@
 // 默认服务器地址。部署后改成你的 HTTPS 地址，例如 https://vca.example.com（不带末尾斜杠）。
 // 生产环境走 Nginx/Caddy 反代，不要直连 127.0.0.1:5675。
 static NSString *const kDefaultServerBaseURL = @"https://ks.etgstudio.live";
-// 与服务端 VCA_KEY 必须一致（VPS 上生成后填到这里，不要在聊天/仓库里出现真实值）。
-static NSString *const kSignKeyHex = @"cabee0556a79e94b01c3fba1e37f63056d0b6f668e336f6e402e07f4adab82bc"; // 与服务端 VCA_KEY 必须一致
+// 与服务端 VCA_KEY 必须一致。仓库公开，真实密钥不写死：CI 构建时用 GitHub Secrets 的 VCA_KEY 替换。
+static NSString *const kSignKeyHex = @"CHANGE_ME"; // 构建时被 secrets.VCA_KEY 替换
 static NSString *const kActivatePath = @"/vca//activate.php";
 static NSString *const kVerifyPath = @"/vca//verify.php";
 
