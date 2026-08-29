@@ -9,35 +9,27 @@
 #import "UIApplication+TLocationPlugin.h"
 #import "UIImage+TLocationPlugin.h"
 
-static UIWindow *_floatWindow;
+static UIButton *_ballButton;
 
 @implementation TLocationFloatBall
 
 + (void)show {
-    if (_floatWindow) {
+    if (_ballButton) {
+        return;
+    }
+    UIWindow *host = [TLocationFloatBall hostWindow];
+    if (!host) {
         return;
     }
     CGFloat size = 56.0;
     CGFloat margin = 20.0;
-    CGSize screen = [UIScreen mainScreen].bounds.size;
+    CGSize screen = host.bounds.size;
     CGRect frame = CGRectMake(screen.width - size - margin,
                               screen.height * 0.55,
                               size, size);
 
-    UIWindow *window = nil;
-    if (@available(iOS 13.0, *)) {
-        window = [[UIWindow alloc] initWithWindowScene:[TLocationFloatBall activeScene]];
-    } else {
-        window = [[UIWindow alloc] initWithFrame:frame];
-    }
-    window.frame = frame;
-    window.windowLevel = UIWindowLevelStatusBar + 100;
-    window.backgroundColor = [UIColor clearColor];
-    window.rootViewController = [UIViewController new];
-    window.userInteractionEnabled = YES;
-
     UIButton *ball = [UIButton buttonWithType:UIButtonTypeCustom];
-    ball.frame = window.bounds;
+    ball.frame = frame;
     ball.backgroundColor = [UIColor colorWithRed:0.13 green:0.44 blue:0.95 alpha:0.95];
     ball.layer.cornerRadius = size / 2.0;
     ball.clipsToBounds = YES;
@@ -52,7 +44,7 @@ static UIWindow *_floatWindow;
         [ball setTitle:@"定位" forState:UIControlStateNormal];
         [ball setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     }
-    [window.rootViewController.view addSubview:ball];
+    [host addSubview:ball];
 
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self
                                                                           action:@selector(panBall:)];
@@ -61,30 +53,32 @@ static UIWindow *_floatWindow;
                                                                           action:@selector(tapBall)];
     [ball addGestureRecognizer:tap];
 
-    _floatWindow = window;
-    window.hidden = NO;
+    _ballButton = ball;
 }
 
 + (void)hide {
-    _floatWindow.hidden = YES;
-    _floatWindow = nil;
+    [_ballButton removeFromSuperview];
+    _ballButton = nil;
 }
 
-+ (UIWindowScene *)activeScene {
++ (UIWindow *)hostWindow {
     if (@available(iOS 13.0, *)) {
         for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
             if ([scene isKindOfClass:UIWindowScene.class] &&
                 scene.activationState == UISceneActivationStateForegroundActive) {
-                return (UIWindowScene *)scene;
-            }
-        }
-        for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-            if ([scene isKindOfClass:UIWindowScene.class]) {
-                return (UIWindowScene *)scene;
+                UIWindowScene *ws = (UIWindowScene *)scene;
+                for (UIWindow *w in ws.windows) {
+                    if (w.isKeyWindow) {
+                        return w;
+                    }
+                }
+                if (ws.windows.count > 0) {
+                    return ws.windows.firstObject;
+                }
             }
         }
     }
-    return nil;
+    return UIApplication.sharedApplication.keyWindow;
 }
 
 + (void)panBall:(UIPanGestureRecognizer *)pan {
