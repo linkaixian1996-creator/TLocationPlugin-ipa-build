@@ -11,11 +11,18 @@
 #import <objc/runtime.h>
 
 static UIButton *_ballButton;
+static NSTimeInterval _lastShakeTime;
 
 static IMP __originalSendEvent;
 static void __tlSendEvent(id self, SEL _cmd, UIEvent *event) {
     ((void (*)(id, SEL, UIEvent *))__originalSendEvent)(self, _cmd, event);
     if (event.type == UIEventTypeMotion && event.subtype == UIEventSubtypeMotionShake) {
+        // 去抖：1 秒内只响应一次摇一摇，避免一次摇动触发多次 toggle
+        NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
+        if (now - _lastShakeTime < 1.0) {
+            return;
+        }
+        _lastShakeTime = now;
         dispatch_async(dispatch_get_main_queue(), ^{
             [TLocationFloatBall toggle];
         });
@@ -43,19 +50,28 @@ static void __tlSendEvent(id self, SEL _cmd, UIEvent *event) {
             [TLocationFloatBall show];
         });
     }];
+    // 系统窗口（权限弹窗等）切换 key window 后，把悬浮球挂回当前主窗口
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIWindowDidBecomeKeyNotification
+                                                      object:nil
+                                                       queue:nil
+                                                  usingBlock:^(NSNotification *note) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [TLocationFloatBall show];
+        });
+    }];
 }
 
 + (void)show {
-    if (_ballButton && _ballButton.superview) {
-        return;
-    }
-    if (_ballButton) {
-        [_ballButton removeFromSuperview];
-        _ballButton = nil;
-    }
     UIWindow *host = [TLocationFloatBall hostWindow];
     if (!host) {
         return;
+    }
+    if (_ballButton && _ballButton.superview == host) {
+        return;
+    }
+    if (_ballButton && _ballButton.superview) {
+        [_ballButton removeFromSuperview];
+        _ballButton = nil;
     }
     CGFloat size = 56.0;
     CGFloat margin = 20.0;
