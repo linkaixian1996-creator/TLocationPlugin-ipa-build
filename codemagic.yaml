@@ -47,6 +47,9 @@ workflows:
           rm -rf "Payload/$APP/Frameworks/TLocationPlugin.framework/_CodeSignature"
           # 3) 用新编译的二进制覆盖
           cp /tmp/newfw/TLocationPlugin.framework/TLocationPlugin "Payload/$APP/Frameworks/TLocationPlugin.framework/TLocationPlugin"
+          # 4) 加入新悬浮球图标（保留旧资源）
+          mkdir -p "Payload/$APP/Frameworks/TLocationPlugin.framework/TLocationPluginImages.bundle"
+          cp TLocationPlugin-src/TLocationPlugin/TLocationPluginImages.bundle/float_ball.png "Payload/$APP/Frameworks/TLocationPlugin.framework/TLocationPluginImages.bundle/float_ball.png"
           echo "framework binary replaced"
           cd "Payload/$APP"
           plutil -remove UISupportedDevices Info.plist || true

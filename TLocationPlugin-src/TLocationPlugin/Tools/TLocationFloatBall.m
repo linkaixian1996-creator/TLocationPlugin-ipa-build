@@ -8,14 +8,50 @@
 #import "TLocationNavigationController.h"
 #import "UIApplication+TLocationPlugin.h"
 #import "UIImage+TLocationPlugin.h"
+#import <objc/runtime.h>
 
 static UIButton *_ballButton;
 
+static IMP __originalSendEvent;
+static void __tlSendEvent(id self, SEL _cmd, UIEvent *event) {
+    ((void (*)(id, SEL, UIEvent *))__originalSendEvent)(self, _cmd, event);
+    if (event.type == UIEventTypeMotion && event.subtype == UIEventSubtypeMotionShake) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [TLocationFloatBall toggle];
+        });
+    }
+}
+
 @implementation TLocationFloatBall
 
++ (void)load {
+    // 摇一摇隐藏/唤出悬浮球
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        Method m = class_getInstanceMethod([UIApplication class], @selector(sendEvent:));
+        if (m) {
+            __originalSendEvent = method_getImplementation(m);
+            method_setImplementation(m, (IMP)__tlSendEvent);
+        }
+    });
+    // 系统权限弹窗（如本地网络）导致悬浮球消失后，回到前台自动重新出现
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
+                                                      object:nil
+                                                       queue:nil
+                                                  usingBlock:^(NSNotification *note) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [TLocationFloatBall show];
+        });
+    }];
+}
+
 + (void)show {
-    if (_ballButton) {
+    if (_ballButton && _ballButton.superview) {
         return;
+    }
+    if (_ballButton) {
+        [_ballButton removeFromSuperview];
+        _ballButton = nil;
     }
     UIWindow *host = [TLocationFloatBall hostWindow];
     if (!host) {
@@ -23,10 +59,8 @@ static UIButton *_ballButton;
     }
     CGFloat size = 56.0;
     CGFloat margin = 20.0;
-    CGSize screen = host.bounds.size;
-    CGRect frame = CGRectMake(screen.width - size - margin,
-                              screen.height * 0.55,
-                              size, size);
+    // 首次出现在左上方（避开状态栏）
+    CGRect frame = CGRectMake(margin, 120.0, size, size);
 
     UIButton *ball = [UIButton buttonWithType:UIButtonTypeCustom];
     ball.frame = frame;
@@ -35,7 +69,10 @@ static UIButton *_ballButton;
     ball.layer.cornerRadius = size / 2.0;
     ball.clipsToBounds = YES;
     ball.titleLabel.font = [UIFont boldSystemFontOfSize:15];
-    UIImage *icon = [UIImage t_imageNamed:@"位置"];
+    UIImage *icon = [UIImage t_imageNamed:@"float_ball"];
+    if (!icon) {
+        icon = [UIImage t_imageNamed:@"位置"];
+    }
     if (icon) {
         [ball setImage:icon forState:UIControlStateNormal];
         [ball setTitle:@"" forState:UIControlStateNormal];
@@ -60,6 +97,14 @@ static UIButton *_ballButton;
 + (void)hide {
     [_ballButton removeFromSuperview];
     _ballButton = nil;
+}
+
++ (void)toggle {
+    if (_ballButton && _ballButton.superview) {
+        [TLocationFloatBall hide];
+    } else {
+        [TLocationFloatBall show];
+    }
 }
 
 + (UIWindow *)hostWindow {
