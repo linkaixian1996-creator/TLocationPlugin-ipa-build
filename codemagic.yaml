@@ -4,8 +4,8 @@ workflows:
     max_build_duration: 30
     instance_type: mac_mini_m2
     environment:
-      # Xcode 14 无 ScanDependencies，对 2019 年老工程最稳
-      xcode: 14.2
+      # mac_mini_m2 最低支持 15.x；15.4 对 2019 年老工程足够稳
+      xcode: 15.4
       vars:
         GH_REPO: linkaixian1996-creator/TLocationPlugin-ipa-build
         RELEASE_TAG: kwai-14.7.20
