@@ -1,0 +1,65 @@
+workflows:
+  build-ipa:
+    name: Build Kwai IPA
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      # Xcode 14 无 ScanDependencies，对 2019 年老工程最稳
+      xcode: 14.2
+      vars:
+        GH_REPO: linkaixian1996-creator/TLocationPlugin-ipa-build
+        RELEASE_TAG: kwai-14.7.20
+        IPA_NAME: Kwai_14.7.20.ipa
+      groups:
+        - vca
+    scripts:
+      - name: Inject VCA_KEY from environment
+        script: |
+          test -n "$VCA_KEY" || { echo "VCA_KEY environment variable missing (add it in Codemagic -> Environment variables)"; exit 1; }
+          sed -i "s/\"CHANGE_ME\"/\"$VCA_KEY\"/" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m
+          grep -q "$VCA_KEY" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m && echo "VCA_KEY injected"
+
+      - name: Download original IPA from GitHub Release
+        script: |
+          curl -L -o "$IPA_NAME" "https://github.com/$GH_REPO/releases/download/$RELEASE_TAG/$IPA_NAME"
+          ls -la "$IPA_NAME"
+
+      - name: Build TLocationPlugin framework
+        script: |
+          cd TLocationPlugin-src
+          xcodebuild -project TLocationPlugin.xcodeproj -scheme TLocationPlugin \
+            -configuration Release -sdk iphoneos \
+            ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET=12.0 \
+            -derivedDataPath ../dd build
+
+      - name: Replace plugin framework and inject if needed
+        script: |
+          set -e
+          rm -rf Payload
+          unzip -q "$IPA_NAME"
+          APP=$(ls Payload | head -1)
+          BIN=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "Payload/$APP/Info.plist")
+          echo "app: $APP binary: $BIN"
+          rm -rf "Payload/$APP/Frameworks/TLocationPlugin.framework"
+          mkdir -p "Payload/$APP/Frameworks"
+          cp -R dd/Build/Products/Release-iphoneos/TLocationPlugin.framework "Payload/$APP/Frameworks/"
+          cd "Payload/$APP"
+          plutil -remove UISupportedDevices Info.plist || true
+          if ! otool -L "$BIN" | grep -q TLocationPlugin; then
+            echo "main binary missing TLocationPlugin -> build yololib and inject"
+            clang -fobjc-arc -framework Foundation -o /tmp/yololib ../../TLocationPlugin-src/yololib/main.m
+            /tmp/yololib "$BIN" "Frameworks/TLocationPlugin.framework/TLocationPlugin"
+          else
+            echo "main binary already loads TLocationPlugin -> replacement only"
+          fi
+          cd ../..
+          echo "replace/inject done"
+
+      - name: Package IPA
+        script: |
+          rm -f Kwai_new.ipa
+          zip -qr Kwai_new.ipa Payload
+          ls -la Kwai_new.ipa
+
+    artifacts:
+      - Kwai_new.ipa
