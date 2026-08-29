@@ -15,6 +15,7 @@
 #import "TLocationFloatBall.h"
 #import <objc/runtime.h>
 #import <dlfcn.h>
+#import <stdlib.h>
 
 @implementation NSObject (TLocationPlugin)
 
