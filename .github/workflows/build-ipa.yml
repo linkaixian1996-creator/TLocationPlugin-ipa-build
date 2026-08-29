@@ -47,7 +47,8 @@ jobs:
           rm -rf Payload
           unzip -q "$IPA"
           APP=$(ls Payload | head -1)
-          echo "app dir: $APP"
+          BIN=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "Payload/$APP/Info.plist")
+          echo "app dir: $APP, binary: $BIN"
           # 1) 用新编译的 framework 替换旧插件（旧 3DES 验证随之移除，虚拟定位功能保留）
           rm -rf "Payload/$APP/Frameworks/TLocationPlugin.framework"
           mkdir -p "Payload/$APP/Frameworks"
@@ -55,9 +56,9 @@ jobs:
           # 2) 若主二进制尚未加载 TLocationPlugin（原包理论上已加载），用 yololib 补注入
           cd "Payload/$APP"
           plutil -remove UISupportedDevices Info.plist || true
-          if ! otool -L "$APP" | grep -q TLocationPlugin; then
+          if ! otool -L "$BIN" | grep -q TLocationPlugin; then
             echo "main binary missing TLocationPlugin load command -> yololib inject"
-            ../../TLocationPlugin-src/yololib/yololib "$APP" "Frameworks/TLocationPlugin.framework/TLocationPlugin"
+            ../../TLocationPlugin-src/yololib/yololib "$BIN" "Frameworks/TLocationPlugin.framework/TLocationPlugin"
           else
             echo "main binary already loads TLocationPlugin -> replacement only"
           fi
