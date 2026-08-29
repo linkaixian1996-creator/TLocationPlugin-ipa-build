@@ -16,7 +16,8 @@ workflows:
       - name: Inject VCA_KEY from environment
         script: |
           test -n "$VCA_KEY" || { echo "VCA_KEY environment variable missing (add it in Codemagic -> Environment variables)"; exit 1; }
-          sed -i "s/\"CHANGE_ME\"/\"$VCA_KEY\"/" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m
+          # macOS 的 BSD sed 必须用 -i ''（空备份后缀）
+          sed -i '' "s/\"CHANGE_ME\"/\"$VCA_KEY\"/" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m
           grep -q "$VCA_KEY" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m && echo "VCA_KEY injected"
 
       - name: Download original IPA from GitHub Release

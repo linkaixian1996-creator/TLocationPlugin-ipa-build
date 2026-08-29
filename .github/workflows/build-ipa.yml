@@ -24,7 +24,8 @@ jobs:
           VCA_KEY: ${{ secrets.VCA_KEY }}
         run: |
           test -n "$VCA_KEY" || { echo "::error::VCA_KEY secret missing"; exit 1; }
-          sed -i "s/\"CHANGE_ME\"/\"$VCA_KEY\"/" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m
+          # macOS 的 BSD sed 必须用 -i ''（空备份后缀）
+          sed -i '' "s/\"CHANGE_ME\"/\"$VCA_KEY\"/" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m
           grep -q "$VCA_KEY" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m && echo "VCA_KEY injected"
 
       - name: Download original IPA from Release
