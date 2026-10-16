@@ -7,6 +7,13 @@ on:
         description: "GitHub Release 的 tag（里面放了 Douyin_40.7.0.ipa）"
         required: true
         default: "douyin-40.7.0"
+  push:
+    branches:
+      - douyin
+    paths:
+      - 'build_framework.sh'
+      - 'TLocationPlugin-src/**'
+      - '.github/workflows/build-douyin-ipa.yml'
 
 jobs:
   build:
