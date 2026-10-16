@@ -9,6 +9,7 @@
 #import "UIApplication+TLocationPlugin.h"
 #import "UIImage+TLocationPlugin.h"
 #import "LicenseManager.h"
+#import "TLocationObserve.h"
 #import <objc/runtime.h>
 
 static UIButton *_ballButton;
@@ -77,9 +78,13 @@ static void __tlSendEvent(id self, SEL _cmd, UIEvent *event) {
 + (void)showNow {
     // 激活门槛：只有已激活（且启动校验通过）才允许显示悬浮窗。
     // 首次安装未激活时，这里直接返回，摇一摇也唤不出来。
+#if TLO_OBSERVE_MODE
+    // 观测版：不校验授权
+#else
     if (![LicenseManager isActivated]) {
         return;
     }
+#endif
     UIWindow *host = [TLocationFloatBall hostWindow];
     if (!host) {
         return;

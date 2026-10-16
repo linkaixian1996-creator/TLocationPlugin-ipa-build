@@ -1,0 +1,71 @@
+name: Build Douyin IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub Release 的 tag（里面放了 Douyin_40.7.0.ipa）"
+        required: true
+        default: "douyin-40.7.0"
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inject VCA_KEY from secrets
+        env:
+          VCA_KEY: ${{ secrets.VCA_KEY }}
+        run: |
+          if [ -n "${VCA_KEY:-}" ]; then
+            sed -i '' "s/\"CHANGE_ME\"/\"$VCA_KEY\"/" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m
+            grep -q "$VCA_KEY" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m && echo "VCA_KEY injected"
+          else
+            echo "VCA_KEY secret 未配置 -> 跳过（观测版不需要）"
+          fi
+
+      - name: Download Douyin IPA from Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ github.event.inputs.release_tag }}" --pattern '*.ipa' --dir .
+          mv -f *.ipa Douyin_40.7.0.ipa
+          ls -la *.ipa
+
+      - name: Build framework
+        run: bash build_framework.sh
+
+      - name: Inject framework into Aweme
+        run: |
+          set -e
+          rm -rf Payload && unzip -q Douyin_40.7.0.ipa
+          mkdir -p "Payload/Aweme.app/Frameworks"
+          rm -rf "Payload/Aweme.app/Frameworks/TLocationPlugin.framework"
+          cp -R /tmp/newfw/TLocationPlugin.framework "Payload/Aweme.app/Frameworks/"
+          plutil -remove UISupportedDevices "Payload/Aweme.app/Info.plist" || true
+          cd "Payload/Aweme.app"
+          if ! otool -L Aweme | grep -q TLocationPlugin; then
+            clang -fobjc-arc -framework Foundation -o /tmp/yololib ../../TLocationPlugin-src/yololib/main.m
+            /tmp/yololib Aweme "Frameworks/TLocationPlugin.framework/TLocationPlugin"
+          fi
+          otool -L Aweme | grep -i tlocation
+          codesign -f -s - Aweme || true
+          codesign -f -s - "Frameworks/TLocationPlugin.framework" || true
+          cd ../..
+
+      - name: Package IPA
+        run: |
+          rm -f Douyin_new.ipa
+          zip -qry Douyin_new.ipa Payload
+          ls -la Douyin_new.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Douyin_new_ipa
+          path: Douyin_new.ipa

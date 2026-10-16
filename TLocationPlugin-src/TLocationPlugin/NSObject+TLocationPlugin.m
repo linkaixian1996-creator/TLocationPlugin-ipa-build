@@ -13,17 +13,51 @@
 #import "UIWindow+TLocationPluginToast.h"
 #import "LicenseManager.h"
 #import "TLocationFloatBall.h"
+#import "TLocationObserve.h"
 #import <objc/runtime.h>
 #import <dlfcn.h>
 #import <stdlib.h>
 
 @implementation NSObject (TLocationPlugin)
 
+#if TLO_OBSERVE_MODE
+/// 观测版：写入一个默认假坐标（GCJ02，北京天安门）并开启「替换定位 + toast 提示」
+static void TLOObserveSeedDefaults(void) {
+    TLocationManager *manager = TLocationManager.shared;
+    manager.locationName = @"北京·天安门";
+    manager.latitude = 39.908722;
+    manager.longitude = 116.397499;
+    manager.range = 5;
+    manager.usingHookLocation = YES;
+    manager.usingToast = YES;
+    [[NSUserDefaults standardUserDefaults] synchronize];
+    NSLog(@"[TLO] observe seed: %f, %f hook=%d toast=%d",
+          manager.latitude, manager.longitude,
+          manager.usingHookLocation, manager.usingToast);
+}
+
+/// 观测版：统计命中的回调次数，方便在 Console 里确认 hook 是否生效
+static NSUInteger _tloHitCount = 0;
+static void TLOObserveLogHit(NSString *sel, id selfObj) {
+    _tloHitCount++;
+    NSLog(@"[TLO] hit #%lu class=%@ sel=%@",
+          (unsigned long)_tloHitCount, NSStringFromClass([selfObj class]), sel);
+}
+#endif
+
 + (void)load {
+#if TLO_OBSERVE_MODE
+    // 观测版：不校验卡密，直接铺默认假坐标 + 显示悬浮球
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        TLOObserveSeedDefaults();
+        [TLocationFloatBall show];
+    });
+#else
     // 启动后强制校验：每次冷启动都向服务器校验卡密，通过才显示悬浮窗
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [NSObject checkLicenseAtLaunchWithRetry:5];
     });
+#endif
 
     // Selector Name
     const char *old_location_sel_name = sel_getName(@selector(locationManager:didUpdateToLocation:fromLocation:));
@@ -167,6 +201,10 @@
                fromLocation:(CLLocation *)oldLocation API_AVAILABLE(macos(10.6)) {
     // 授权门控：未激活/已过期时不替换宿主定位数据，只走原始回调。
     BOOL licensed = [LicenseManager isActivated];
+#if TLO_OBSERVE_MODE
+    licensed = YES;
+    TLOObserveLogHit(@"didUpdateToLocation:fromLocation:", self);
+#endif
     BOOL useHook = licensed && TLocationManager.shared.usingHookLocation && TLocationManager.shared.hasCachedLocation;
     // 不使用或者暂时暂停使用，调用原方法
     if (!useHook || TLocationManager.shared.isSuspend) {
@@ -192,6 +230,10 @@
          didUpdateLocations:(NSArray<CLLocation *> *)locations {
     // 授权门控：未激活/已过期时不替换宿主定位数据，只走原始回调。
     BOOL licensed = [LicenseManager isActivated];
+#if TLO_OBSERVE_MODE
+    licensed = YES;
+    TLOObserveLogHit(@"didUpdateLocations:", self);
+#endif
     BOOL useHook = licensed && TLocationManager.shared.usingHookLocation && TLocationManager.shared.hasCachedLocation;
     // 不使用或者暂时暂停使用，调用原方法
     if (!useHook || TLocationManager.shared.isSuspend) {

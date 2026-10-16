@@ -1,39 +1,52 @@
-# TLocationPlugin IPA 云打包（GitHub Actions）
+# 抖音（Aweme 40.7.0）虚拟定位插件 — 云打包仓库
 
-把注入新验证逻辑的 TLocationPlugin 打进快手 IPA：**移除旧 3DES 卡密验证 → 保留虚拟定位功能 → 装入新 LicenseManager 验证**。全程在 GitHub 免费 macOS 云主机完成，不需要本机 Mac、不需要证书。
+把 TLocationPlugin（虚拟定位 + 卡密验证）注入抖音 IPA，产出可安装的成品 IPA。
+与快手那套的区别：**抖音包是干净包，没有任何插件，需要从零注入**。
 
-## 仓库内容
+## 包内结构
 
-- `TLocationPlugin-src/`：插件源码（LicenseManager 已填好服务器地址 + VCA_KEY）+ yololib
-- `.github/workflows/build-ipa.yml`：云打包流水线
+| 路径 | 作用 |
+|---|---|
+| `TLocationPlugin-src/` | 插件源码（含 `yololib` 注入器、`TLocationPluginImages.bundle` 资源） |
+| `TLocationPlugin-src/TLocationPlugin/Tools/TLocationObserve.h` | **构建模式开关** `TLO_OBSERVE_MODE`（1=观测版，0=正式版） |
+| `build_framework.sh` | 手工编译并完整组装 framework（clang 编 .m + ibtool 编 nib + 资源 + Info.plist + adhoc 签名） |
+| `codemagic.yaml` | Codemagic 云打包工作流（推荐） |
+| `.github/workflows/build-douyin-ipa.yml` | GitHub Actions 备用流水线（macos-14） |
 
-## 打包逻辑说明
+## 关键参数
 
-- 原始 IPA 里插件是 `Frameworks/TLocationPlugin.framework`（旧版，含旧 3DES 验证）。
-- 流水线用**干净开源源码 + 新 LicenseManager** 重新编译 framework，**整包替换**旧的 → 旧验证代码彻底移除，虚拟定位功能保留，新验证装入。
-- 主二进制原本已加载该 framework，无需重复注入；若检测到未加载则用 yololib 补注入。
-- 激活入口：连点 5 次快手窗口打开设置界面后，未激活会自动弹出卡密输入框。
+| 项 | 值 |
+|---|---|
+| 包内 App 目录 | `Payload/Aweme.app` |
+| 主二进制（注入目标） | `Aweme`（只有 276 KB；真正代码在 `Frameworks/AwemeCore.framework/AwemeCore`，1 GB，**绝不要动**） |
+| Bundle ID | `com.ss.iphone.ugc.Aweme` |
+| 注入路径 | `Frameworks/TLocationPlugin.framework/TLocationPlugin`（主二进制已有 `@executable_path/Frameworks` 这条 rpath） |
+| GitHub Release tag | `douyin-40.7.0`（资产名必须是 `Douyin_40.7.0.ipa`，中文名会让 curl 取不到） |
 
-## 使用方法
+## 使用流程
 
-1. **GitHub Desktop** → File → Add Local Repository → 选择本目录 → Publish repository（**务必选 Private 私有仓库**，因为源码里含 VCA_KEY）。
-2. 网页打开仓库 → **Releases** → Create a new release：
-   - Tag 填 `kwai-14.7.20`
-   - 上传 `Kwai_14.7.20.ipa`（272MB）
-   - Publish release
-3. 仓库 **Actions** 页 → 左侧选 `Build Kwai IPA` → Run workflow（release_tag 默认 `kwai-14.7.20`）→ 等几分钟。
-4. 跑完 Actions 页面下方出现 **Artifacts** → 下载 `Kwai_new_ipa`，解压得到 `Kwai_new.ipa`。
-5. 把 `Kwai_new.ipa` 传到 iPhone，用**全能签**（个人证书）重签安装。
+1. 把抖音原始 IPA 改名为 `Douyin_40.7.0.ipa`，在仓库 **Releases** 新建 tag `douyin-40.7.0` 并上传该资产。
+2. Codemagic → 选 `Build Douyin IPA` 工作流 → 选对应分支 → Start build（约 5~15 分钟）。
+3. 从 Artifacts 下载 `Douyin_new.ipa`。
+4. 传到手机：
+   - Windows 上在 IPA 所在目录跑 `python -m http.server 8000`，手机 Safari 打开 `http://<电脑局域网IP>:8000/Douyin_new.ipa` 下载；
+   - iPhone 11 / iOS 16.6.1 → 用**巨魔（TrollStore）**安装；
+   - iPhone 14 Pro / iOS 27 → 用**全能签**重签安装（需开「开发者模式」）。
 
-> 仓库必须是 Private：LicenseManager.m 里的 VCA_KEY 不能进公开仓库。
+## 观测版 vs 正式版
 
-## 客户端配置（已填好）
+开关在 `TLocationPlugin-src/TLocationPlugin/Tools/TLocationObserve.h`：
 
-- 服务器：`https://ks.etgstudio.live`
-- VCA_KEY：**不放仓库**。构建时从 GitHub **Secrets** 读取（见第 2 步）；必须与 VPS 上 `/opt/tlocation-vca/.env` 的 `VCA_KEY` 完全一致（`sudo cat /opt/tlocation-vca/.env | grep VCA_KEY` 查看）。
+- `#define TLO_OBSERVE_MODE 1` → **观测版**：不校验卡密；冷启动 2.5 秒后自动下发假坐标
+  （北京天安门 GCJ02 `39.908722, 116.397499`）、开启 toast 提示、显示悬浮球。
+  用途：验证抖音的定位通道能不能被假坐标改掉（看抖音自己的「同城 / 开播城市 / 作品定位」变不变）。
+- `#define TLO_OBSERVE_MODE 0` → **正式版**：走卡密门控（未激活不替换坐标、不显示悬浮球、冷启动联网校验）。
 
-## 为什么仓库必须是 Public
+## 已知边界（抖音与快手的差异）
 
-- GitHub 免费版对**私有仓库**不提供 macOS 云主机，任务会一直排队；
-- 改为 **Public** 后免费额度即可用；
-- 真实密钥已从源码移除，通过 **Settings → Secrets and variables → Actions → New repository secret** 配置 `VCA_KEY`，构建时自动注入，仓库公开也不会泄露。
+- 插件只拦 `CLLocationManager` 的 delegate 回调。抖音的 BDLocation 栈里有 5 个类实现该回调，机制能覆盖；
+  但 `-[BDLLightLocationManager getCoreLocationLastLocationWithAccuracy:config:]`（直读 last location）、
+  IP 定位（`requestIPLocationWithCompletion:`）、WiFi/BSSID 上报这三条旁路当前不拦，需要后续补。
+- 注入会破坏原签名：流水线用 `codesign -f -s -`（adhoc）重新签；巨魔安装时会再 permasign，全能签会用自己的证书重签。
+- 重签会丢掉部分 entitlements（推送 `aps-environment`、App Group、`increased-memory-limit` 内存上限等），
+  这是重签的通病，不是插件问题；若出现被系统杀后台变频繁，优先怀疑内存上限 entitlement 被降级。

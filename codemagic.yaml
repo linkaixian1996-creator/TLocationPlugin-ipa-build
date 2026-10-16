@@ -1,73 +1,72 @@
 workflows:
-  build-ipa:
-    name: Build Kwai IPA
-    max_build_duration: 30
+  build-douyin-ipa:
+    name: Build Douyin IPA
+    max_build_duration: 40
     instance_type: mac_mini_m2
     environment:
-      # Codemagic 当前支持 16.x~26.x；16.4 比默认 26 老，兼容 2019 年老工程
+      # Codemagic 支持 16.x~26.x；老工程（2019）用 16.4 最稳
       xcode: 16.4
       vars:
         GH_REPO: linkaixian1996-creator/TLocationPlugin-ipa-build
-        RELEASE_TAG: kwai-14.7.20
-        IPA_NAME: Kwai_14.7.20.ipa
+        RELEASE_TAG: douyin-40.7.0
+        IPA_NAME: Douyin_40.7.0.ipa
+        APP_DIR: Aweme.app
+        APP_BIN: Aweme
+        NEW_IPA: Douyin_new.ipa
       groups:
         - vca
     scripts:
-      - name: Inject VCA_KEY from environment
+      - name: Inject VCA_KEY (观测版可跳过)
         script: |
-          test -n "$VCA_KEY" || { echo "VCA_KEY environment variable missing (add it in Codemagic -> Environment variables)"; exit 1; }
-          # macOS 的 BSD sed 必须用 -i ''（空备份后缀）
-          sed -i '' "s/\"CHANGE_ME\"/\"$VCA_KEY\"/" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m
-          grep -q "$VCA_KEY" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m && echo "VCA_KEY injected"
+          if [ -n "${VCA_KEY:-}" ]; then
+            sed -i '' "s/\"CHANGE_ME\"/\"$VCA_KEY\"/" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m
+            grep -q "$VCA_KEY" TLocationPlugin-src/TLocationPlugin/License/LicenseManager.m && echo "VCA_KEY injected"
+          else
+            echo "VCA_KEY 未配置 -> 跳过注入（观测版不需要密钥）"
+          fi
 
-      - name: Download original IPA from GitHub Release
+      - name: Download Douyin IPA from GitHub Release
         script: |
-          curl -L -o "$IPA_NAME" "https://github.com/$GH_REPO/releases/download/$RELEASE_TAG/$IPA_NAME"
+          curl -L --retry 3 -o "$IPA_NAME" \
+            "https://github.com/$GH_REPO/releases/download/$RELEASE_TAG/$IPA_NAME"
           ls -la "$IPA_NAME"
 
-      - name: Build TLocationPlugin framework
+      - name: Build TLocationPlugin.framework (clang + ibtool)
         script: |
-          # 绕开 xcodebuild ScanDependencies bug，用 clang 手工编译
           bash build_framework.sh
 
-      - name: Replace plugin framework and inject if needed
+      - name: Inject framework into Aweme
         script: |
           set -e
           rm -rf Payload
           unzip -q "$IPA_NAME"
-          APP=$(ls Payload | head -1)
-          BIN=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "Payload/$APP/Info.plist")
-          echo "app: $APP binary: $BIN"
-          # 1) 备份原版 framework（保留 nib/bundle/Info.plist/Modules 资源）
-          cp -R "Payload/$APP/Frameworks/TLocationPlugin.framework" /tmp/oldfw_backup
-          # 2) 重建 framework 目录，从备份恢复资源
-          rm -rf "Payload/$APP/Frameworks/TLocationPlugin.framework"
-          mkdir -p "Payload/$APP/Frameworks/TLocationPlugin.framework"
-          cp -R /tmp/oldfw_backup/. "Payload/$APP/Frameworks/TLocationPlugin.framework/"
-          rm -rf "Payload/$APP/Frameworks/TLocationPlugin.framework/_CodeSignature"
-          # 3) 用新编译的二进制覆盖
-          cp /tmp/newfw/TLocationPlugin.framework/TLocationPlugin "Payload/$APP/Frameworks/TLocationPlugin.framework/TLocationPlugin"
-          # 4) 加入新悬浮球图标（保留旧资源）
-          mkdir -p "Payload/$APP/Frameworks/TLocationPlugin.framework/TLocationPluginImages.bundle"
-          cp TLocationPlugin-src/TLocationPlugin/TLocationPluginImages.bundle/float_ball.png "Payload/$APP/Frameworks/TLocationPlugin.framework/TLocationPluginImages.bundle/float_ball.png"
-          echo "framework binary replaced"
-          cd "Payload/$APP"
-          plutil -remove UISupportedDevices Info.plist || true
-          if ! otool -L "$BIN" | grep -q TLocationPlugin; then
-            echo "main binary missing TLocationPlugin -> build yololib and inject"
-            clang -fobjc-arc -framework Foundation -o /tmp/yololib ../../TLocationPlugin-src/yololib/main.m
-            /tmp/yololib "$BIN" "Frameworks/TLocationPlugin.framework/TLocationPlugin"
+          [ -d "Payload/$APP_DIR" ] || { echo "!! Payload/$APP_DIR 不存在，解压结果："; ls Payload; exit 1; }
+          mkdir -p "Payload/$APP_DIR/Frameworks"
+          rm -rf "Payload/$APP_DIR/Frameworks/TLocationPlugin.framework"
+          cp -R /tmp/newfw/TLocationPlugin.framework "Payload/$APP_DIR/Frameworks/"
+          plutil -remove UISupportedDevices "Payload/$APP_DIR/Info.plist" || true
+
+          cd "Payload/$APP_DIR"
+          if otool -L "$APP_BIN" | grep -q TLocationPlugin; then
+            echo "主二进制已加载 TLocationPlugin -> 跳过注入"
           else
-            echo "main binary already loads TLocationPlugin -> replacement only"
+            echo "主二进制没有 TLocationPlugin -> yololib 注入"
+            clang -fobjc-arc -framework Foundation -o /tmp/yololib ../../TLocationPlugin-src/yololib/main.m
+            /tmp/yololib "$APP_BIN" "Frameworks/TLocationPlugin.framework/TLocationPlugin"
           fi
+          otool -L "$APP_BIN" | grep -i tlocation || { echo "!! 注入校验失败"; exit 1; }
+
+          codesign -f -s - "$APP_BIN" || true
+          codesign -f -s - "Frameworks/TLocationPlugin.framework" || true
+          echo "== 注入完成（$APP_BIN） =="
           cd ../..
-          echo "replace/inject done"
 
       - name: Package IPA
         script: |
-          rm -f Kwai_new.ipa
-          zip -qr Kwai_new.ipa Payload
-          ls -la Kwai_new.ipa
+          rm -f "$NEW_IPA"
+          zip -qry "$NEW_IPA" Payload
+          ls -la "$NEW_IPA"
+          unzip -l "$NEW_IPA" | grep -i tlocation || true
 
     artifacts:
-      - Kwai_new.ipa
+      - Douyin_new.ipa

@@ -201,7 +201,7 @@ static NSString *const kUDModel = @"vca_model";
     }
     NSDictionary *params = @{
         @"action": @"activate",
-        @"app_bundle": @"com_kwai_gif", // 改成目标 App 的 bundle id
+        @"app_bundle": @"com.ss.iphone.ugc.Aweme", // 抖音（Aweme）bundle id
         @"card_key": cleanCard,
         @"ios_version": [[UIDevice currentDevice] systemVersion],
         @"model": [self deviceModel],
