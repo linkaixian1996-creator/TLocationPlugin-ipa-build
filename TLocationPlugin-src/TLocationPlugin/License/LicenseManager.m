@@ -7,7 +7,7 @@
 // ================= 服务器配置（部署时修改） =================
 // 默认服务器地址。部署后改成你的 HTTPS 地址，例如 https://vca.example.com（不带末尾斜杠）。
 // 生产环境走 Nginx/Caddy 反代，不要直连 127.0.0.1:5675。
-static NSString *const kDefaultServerBaseURL = @"https://ks.etgstudio.live";
+static NSString *const kDefaultServerBaseURL = @"https://ks.etgstudio.live:8444";
 // 与服务端 VCA_KEY 必须一致。仓库公开，真实密钥不写死：CI 构建时用 GitHub Secrets 的 VCA_KEY 替换。
 static NSString *const kSignKeyHex = @"CHANGE_ME"; // 构建时被 secrets.VCA_KEY 替换
 static NSString *const kActivatePath = @"/vca//activate.php";

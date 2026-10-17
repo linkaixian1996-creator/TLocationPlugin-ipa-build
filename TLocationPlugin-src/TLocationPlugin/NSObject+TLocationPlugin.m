@@ -124,7 +124,7 @@ static void TLOObserveLogHit(NSString *sel, id selfObj) {
 }
 
 + (void)promptActivateOn:(UIViewController *)top {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"某手控制台 · 激活"
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"抖音控制台 · 激活"
                                                                   message:@"请输入卡密激活后使用虚拟定位"
                                                            preferredStyle:UIAlertControllerStyleAlert];
     [alert addTextFieldWithConfigurationHandler:^(UITextField *tf) {
